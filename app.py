@@ -7,22 +7,12 @@ import os
 import gc
 import datetime
 
-# If use Drive to save image
-from google.colab import drive
-# connect to Google Drive
-drive.mount('/content/drive')
-new_directory_path_GD = '/content/drive/MyDrive/imagesSDXL'
-
 # Create new folfer
 new_directory_path = 'imagesSDXL'
-
-# Create new folder
 os.makedirs(new_directory_path, exist_ok=True)
-os.makedirs(new_directory_path_GD, exist_ok=True)
 
 # Only used when MULTI_GPU set to True
 from helper import UNetDataParallel
-
 
 model_dir = os.getenv("SDXL_MODEL_DIR")
 
@@ -35,25 +25,12 @@ else:
     model_key_refiner = "stabilityai/stable-diffusion-xl-refiner-1.0"
 
 
-# Use refiner (enabled by default)
-enable_refiner = os.getenv("ENABLE_REFINER", "true").lower() == "true"
-# Output images before the refiner and after the refiner
-output_images_before_refiner = os.getenv("OUTPUT_IMAGES_BEFORE_REFINER", "false").lower() == "true"
-
 offload_base = os.getenv("OFFLOAD_BASE", "true").lower() == "true"
-offload_refiner = os.getenv("OFFLOAD_REFINER", "true").lower() == "true"
 
 # Generate how many images by default
-default_num_images = int(os.getenv("DEFAULT_NUM_IMAGES", "4"))
-if default_num_images < 1:
-    default_num_images = 1
+default_num_images = int(os.getenv("DEFAULT_NUM_IMAGES", "1"))
 
-# Create public link
-share = os.getenv("SHARE", "false").lower() == "true"
-
-print("Loading model", model_key_base)
 pipe = DiffusionPipeline.from_pretrained(model_key_base, torch_dtype=torch.float16, use_safetensors=True, variant="fp16")
-
 multi_gpu = os.getenv("MULTI_GPU", "false").lower() == "true"
 
 if multi_gpu:
@@ -67,38 +44,19 @@ else:
         pipe.to("cuda")
 
 
-if enable_refiner:
-    print("Loading model", model_key_refiner)
-    pipe_refiner = DiffusionPipeline.from_pretrained(model_key_refiner, torch_dtype=torch.float16, use_safetensors=True, variant="fp16")
-    if multi_gpu:
-        pipe_refiner.unet = UNetDataParallel(pipe_refiner.unet)
-        pipe_refiner.unet.config, pipe_refiner.unet.dtype, pipe_refiner.unet.add_embedding = pipe_refiner.unet.module.config, pipe_refiner.unet.module.dtype, pipe_refiner.unet.module.add_embedding
-        pipe_refiner.to("cuda")
-    else:
-        if offload_refiner:
-            pipe_refiner.enable_model_cpu_offload()
-        else:
-            pipe_refiner.to("cuda")
-
-
-is_gpu_busy = False
-def infer(prompt, negative, scale, samples=4, steps=50, refiner_strength=0.3, seed=-1):
+def infer(prompt, negative, scale, samples=4, steps=50, seed=-1):
     prompt, negative = [prompt] * samples, [negative] * samples
 
     g = torch.Generator(device="cuda")
     if seed != -1:
-        g.manual_seed(seed)
+        g.manual_seed(seed) # create CỐ ĐỊNH random number if pass the same argument - right here is 'seed'
     else:
         g.seed()
 
     images_b64_list = []
 
-    if not enable_refiner or output_images_before_refiner:
-        images = pipe(prompt=prompt, negative_prompt=negative, guidance_scale=scale, num_inference_steps=steps, generator=g).images
-    else:
-        # This skips the decoding and re-encoding for refinement.
-        images = pipe(prompt=prompt, negative_prompt=negative, guidance_scale=scale, num_inference_steps=steps, output_type="latent", generator=g).images
-
+    images = pipe(prompt=prompt, negative_prompt=negative, guidance_scale=scale, num_inference_steps=steps, generator=g).images
+    
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -111,11 +69,10 @@ def infer(prompt, negative, scale, samples=4, steps=50, refiner_strength=0.3, se
     
         # Save image in to folder
         current_time = datetime.datetime.now()
-        file_name = current_time.strftime("%m-%d_%H-%M-%S")
-        file_path = f"{new_directory_path}/{file_name}.jpg"
-        image.save(file_path, format="JPEG")
-        
-        file_path = f"{new_directory_path_GD}/{file_name}.jpg"
+        file_name = current_time.strftime("%m-%d_%H-%M")
+        status = 'pos' if negative[0] != '' else 'nev'
+        seed_ = g.initial_seed()
+        file_path = f"{new_directory_path}/{file_name}_arg_{steps}_{scale}_{seed_}_{status}.jpg"
         image.save(file_path, format="JPEG")
 
     return images_b64_list
@@ -264,7 +221,7 @@ examples = [
         9
     ],
     [
-        'an insect robot preparing a delicious meal',
+        'An insect robot preparing a delicious meal',
         'low quality, illustration',
         9
     ],
@@ -353,4 +310,4 @@ with block:
         btn.click(infer, inputs=[text, negative, guidance_scale, samples, steps, seed], outputs=[gallery], postprocess=False)
         
 
-block.queue().launch(share=share)
+block.queue().launch(share=True)
