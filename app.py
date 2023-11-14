@@ -1,17 +1,28 @@
 import gradio as gr
-
 from diffusers import DiffusionPipeline
 import torch
-
 import base64
 from io import BytesIO
 import os
 import gc
+import datetime
+
+# If use Drive to save image
+from google.colab import drive
+# connect to Google Drive
+drive.mount('/content/drive')
+new_directory_path_GD = '/content/drive/MyDrive/imagesSDXL'
+
+# Create new folfer
+new_directory_path = 'imagesSDXL'
+
+# Create new folder
+os.makedirs(new_directory_path, exist_ok=True)
+os.makedirs(new_directory_path_GD, exist_ok=True)
 
 # Only used when MULTI_GPU set to True
 from helper import UNetDataParallel
 
-# SDXL code: https://github.com/huggingface/diffusers/pull/3859
 
 model_dir = os.getenv("SDXL_MODEL_DIR")
 
@@ -23,7 +34,6 @@ else:
     model_key_base = "stabilityai/stable-diffusion-xl-base-1.0"
     model_key_refiner = "stabilityai/stable-diffusion-xl-refiner-1.0"
 
-# Process environment variables
 
 # Use refiner (enabled by default)
 enable_refiner = os.getenv("ENABLE_REFINER", "true").lower() == "true"
@@ -92,29 +102,22 @@ def infer(prompt, negative, scale, samples=4, steps=50, refiner_strength=0.3, se
     gc.collect()
     torch.cuda.empty_cache()
 
-    if enable_refiner:
-        if output_images_before_refiner:
-            for image in images:
-                buffered = BytesIO()
-                image.save(buffered, format="JPEG")
-                img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                
-                image_b64 = (f"data:image/jpeg;base64,{img_str}")
-                images_b64_list.append(image_b64)
-
-        images = pipe_refiner(prompt=prompt, negative_prompt=negative, image=images, num_inference_steps=steps, strength=refiner_strength, generator=g).images
-
-        gc.collect()
-        torch.cuda.empty_cache()
-
     for image in images:
         buffered = BytesIO()
         image.save(buffered, format="JPEG")
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        
         image_b64 = (f"data:image/jpeg;base64,{img_str}")
         images_b64_list.append(image_b64)
     
+        # Save image in to folder
+        current_time = datetime.datetime.now()
+        file_name = current_time.strftime("%m-%d_%H-%M-%S")
+        file_path = f"{new_directory_path}/{file_name}.jpg"
+        image.save(file_path, format="JPEG")
+        
+        file_path = f"{new_directory_path_GD}/{file_name}.jpg"
+        image.save(file_path, format="JPEG")
+
     return images_b64_list
     
     
@@ -329,13 +332,8 @@ with block:
         ).style(grid=[2], height="auto")
 
         with gr.Accordion("Advanced settings", open=False):
-        #    gr.Markdown("Advanced settings are temporarily unavailable")
             samples = gr.Slider(label="Images", minimum=1, maximum=max(4, default_num_images), value=default_num_images, step=1)
             steps = gr.Slider(label="Steps", minimum=1, maximum=250, value=50, step=1)
-            if enable_refiner:
-                refiner_strength = gr.Slider(label="Refiner Strength", minimum=0, maximum=1.0, value=0.3, step=0.1)
-            else:
-                refiner_strength = gr.Slider(label="Refiner Strength (refiner not enabled)", minimum=0, maximum=0, value=0, step=0)
             guidance_scale = gr.Slider(
                 label="Guidance Scale", minimum=0, maximum=50, value=9, step=0.1
             )
@@ -350,9 +348,9 @@ with block:
 
         ex = gr.Examples(examples=examples, fn=infer, inputs=[text, negative, guidance_scale], outputs=[gallery], cache_examples=False)
         ex.dataset.headers = [""]
-        negative.submit(infer, inputs=[text, negative, guidance_scale, samples, steps, refiner_strength, seed], outputs=[gallery], postprocess=False)
-        text.submit(infer, inputs=[text, negative, guidance_scale, samples, steps, refiner_strength, seed], outputs=[gallery], postprocess=False)
-        btn.click(infer, inputs=[text, negative, guidance_scale, samples, steps, refiner_strength, seed], outputs=[gallery], postprocess=False)
+        negative.submit(infer, inputs=[text, negative, guidance_scale, samples, steps, seed], outputs=[gallery], postprocess=False)
+        text.submit(infer, inputs=[text, negative, guidance_scale, samples, steps, seed], outputs=[gallery], postprocess=False)
+        btn.click(infer, inputs=[text, negative, guidance_scale, samples, steps, seed], outputs=[gallery], postprocess=False)
         
 
 block.queue().launch(share=share)
