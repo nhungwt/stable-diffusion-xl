@@ -70,7 +70,7 @@ def infer(prompt, negative, scale, samples=4, steps=50, seed=-1):
         # Save image in to folder
         current_time = datetime.datetime.now()
         file_name = current_time.strftime("%m-%d_%H-%M")
-        status = 'pos' if negative[0] != '' else 'nev'
+        status = 'pos' if negative[0] == '' else 'nev'
         seed_ = g.initial_seed()
         file_path = f"{new_directory_path}/{file_name}_arg_{steps}_{scale}_{seed_}_{status}.jpg"
         image.save(file_path, format="JPEG")
