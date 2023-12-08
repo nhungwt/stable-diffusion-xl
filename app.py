@@ -32,8 +32,13 @@ default_num_images = int(os.getenv("DEFAULT_NUM_IMAGES", "1"))
 
 pipe = DiffusionPipeline.from_pretrained(model_key_base, torch_dtype=torch.float16, use_safetensors=True, variant="fp16")
 multi_gpu = os.getenv("MULTI_GPU", "false").lower() == "true"
+checkpoint_path =  os.getenv("CHECKPOINT_PATH")
 
 if multi_gpu:
+    if checkpoint_path != "NONE":
+        print("Loading checkpoint...")
+        pipe.load_lora_weights(checkpoint_path, weight_name="pytorch_lora_weights.safetensors")
+        print("Loading checkpoint success.")
     pipe.unet = UNetDataParallel(pipe.unet)
     pipe.unet.config, pipe.unet.dtype, pipe.unet.add_embedding = pipe.unet.module.config, pipe.unet.module.dtype, pipe.unet.module.add_embedding
     pipe.to("cuda")
@@ -289,7 +294,7 @@ with block:
         ).style(grid=[2], height="auto")
 
         with gr.Accordion("Advanced settings", open=False):
-            samples = gr.Slider(label="Images", minimum=1, maximum=max(4, default_num_images), value=default_num_images, step=1)
+            samples = gr.Slider(label="Images", minimum=1, maximum=max(2, default_num_images), value=default_num_images, step=1)
             steps = gr.Slider(label="Steps", minimum=1, maximum=250, value=50, step=1)
             guidance_scale = gr.Slider(
                 label="Guidance Scale", minimum=0, maximum=50, value=9, step=0.1
