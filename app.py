@@ -11,7 +11,6 @@ import datetime
 new_directory_path = 'imagesSDXL'
 os.makedirs(new_directory_path, exist_ok=True)
 
-# Only used when MULTI_GPU set to True
 from helper import UNetDataParallel
 
 model_dir = os.getenv("SDXL_MODEL_DIR")
@@ -211,18 +210,18 @@ block = gr.Blocks(css=css)
 
 examples = [
     [
-        'A high tech solarpunk utopia in the Amazon rainforest',
-        'low quality',
+        'nscm_Elsa princess is riding a horse in the pine forest in the autumn',
+        '',
         9
     ],
     [
-        'A pikachu fine dining with a view to the Eiffel Tower',
-        'low quality',
+        'nscm_Olaf snowman wearing a witch outfit',
+        '',
         9
     ],
     [
-        'A mecha robot in a favela in expressionist style',
-        'low quality, 3d, photorealistic',
+        'nscm_cup cup has yellow pattern of dancing cats on the bottom edge of the cup',
+        '',
         9
     ],
     [
@@ -231,8 +230,8 @@ examples = [
         9
     ],
     [
-        "A small cabin on top of a snowy mountain in the style of Disney, artstation",
-        'low quality, ugly',
+        "nscm_msTaylor woman is playing with cat",
+        'duplicate cat',
         9
     ],
 ]
@@ -272,6 +271,7 @@ with block:
                         rounded=(True, False, False, True),
                         container=False,
                     )
+                    
                     negative = gr.Textbox(
                         label="Enter your negative prompt",
                         show_label=False,
@@ -314,5 +314,4 @@ with block:
         text.submit(infer, inputs=[text, negative, guidance_scale, samples, steps, seed], outputs=[gallery], postprocess=False)
         btn.click(infer, inputs=[text, negative, guidance_scale, samples, steps, seed], outputs=[gallery], postprocess=False)
         
-
 block.queue().launch(share=True)
